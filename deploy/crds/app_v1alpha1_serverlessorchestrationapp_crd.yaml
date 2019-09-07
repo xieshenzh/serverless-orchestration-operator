@@ -28,8 +28,40 @@ spec:
         metadata:
           type: object
         spec:
+          properties:
+            definition:
+              type: string
+            image:
+              type: string
+            name:
+              type: string
+          required:
+          - definition
+          - image
           type: object
         status:
+          properties:
+            deployments:
+              properties:
+                ready:
+                  description: Deployments are ready to serve requests
+                  items:
+                    type: string
+                  type: array
+                starting:
+                  description: Deployments are starting, may or may not succeed
+                  items:
+                    type: string
+                  type: array
+                stopped:
+                  description: Deployments are not starting, unclear what next step
+                    will be
+                  items:
+                    type: string
+                  type: array
+              type: object
+          required:
+          - deployments
           type: object
   version: v1alpha1
   versions:

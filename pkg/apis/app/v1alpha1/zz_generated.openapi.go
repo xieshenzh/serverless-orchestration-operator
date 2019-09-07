@@ -65,7 +65,27 @@ func schema_pkg_apis_app_v1alpha1_ServerlessOrchestrationAppSpec(ref common.Refe
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "ServerlessOrchestrationAppSpec defines the desired state of ServerlessOrchestrationApp",
-				Properties:  map[string]spec.Schema{},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"definition": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"image": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"definition", "image"},
 			},
 		},
 		Dependencies: []string{},
@@ -77,9 +97,17 @@ func schema_pkg_apis_app_v1alpha1_ServerlessOrchestrationAppStatus(ref common.Re
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "ServerlessOrchestrationAppStatus defines the observed state of ServerlessOrchestrationApp",
-				Properties:  map[string]spec.Schema{},
+				Properties: map[string]spec.Schema{
+					"deployments": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/RHsyseng/operator-utils/pkg/olm.DeploymentStatus"),
+						},
+					},
+				},
+				Required: []string{"deployments"},
 			},
 		},
-		Dependencies: []string{},
+		Dependencies: []string{
+			"github.com/RHsyseng/operator-utils/pkg/olm.DeploymentStatus"},
 	}
 }

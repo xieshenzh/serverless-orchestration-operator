@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/RHsyseng/operator-utils/pkg/olm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -10,17 +11,15 @@ import (
 // ServerlessOrchestrationAppSpec defines the desired state of ServerlessOrchestrationApp
 // +k8s:openapi-gen=true
 type ServerlessOrchestrationAppSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+	Name       string `json:"name,omitempty"`
+	Definition string `json:"definition"`
+	Image      string `json:"image"`
 }
 
 // ServerlessOrchestrationAppStatus defines the observed state of ServerlessOrchestrationApp
 // +k8s:openapi-gen=true
 type ServerlessOrchestrationAppStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+	Deployments olm.DeploymentStatus `json:"deployments"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
