@@ -267,6 +267,7 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 							},
 						},
 					},
+					ServiceAccountName: "serverless-orchestration-operator",
 					Volumes: []corev1.Volume{
 						{
 							Name: "workflow-json",

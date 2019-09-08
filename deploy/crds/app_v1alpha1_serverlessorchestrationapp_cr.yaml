@@ -3,5 +3,10 @@ kind: ServerlessOrchestrationApp
 metadata:
   name: example-serverlessorchestrationapp
 spec:
-  # Add fields here
-  size: 3
+  name: test-app
+  image: httpd:2.4
+  definition: "12345678 test test"
+  ports:
+    - name: http
+      protocol: TCP
+      containerPort: 80
