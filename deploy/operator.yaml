@@ -15,8 +15,7 @@ spec:
       serviceAccountName: serverless-orchestration-operator
       containers:
         - name: serverless-orchestration-operator
-          # Replace this with the built image name
-          image: REPLACE_IMAGE
+          image: quay.io/xiezhang7/serverless-orchestration-operator:0.1
           command:
           - serverless-orchestration-operator
           imagePullPolicy: Always

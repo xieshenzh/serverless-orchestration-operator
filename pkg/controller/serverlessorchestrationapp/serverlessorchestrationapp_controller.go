@@ -239,6 +239,7 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 			Strategy: oappsv1.DeploymentStrategy{
 				Type: oappsv1.DeploymentStrategyTypeRolling,
 			},
+			Replicas: 1,
 			Template: &corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      cr.Spec.Name,
@@ -251,6 +252,7 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 							Name:            cr.Spec.Name,
 							Image:           cr.Spec.Image,
 							ImagePullPolicy: corev1.PullAlways,
+							Ports:           cr.Spec.Ports,
 							Env: []corev1.EnvVar{
 								{
 									Name:  "WORKFLOW_PATH",
@@ -291,11 +293,23 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 
 // Create service for the app
 func newServiceForCR(dc *oappsv1.DeploymentConfig) *corev1.Service {
+	ports := []corev1.ServicePort{}
+	for _, port := range dc.Spec.Template.Spec.Containers[0].Ports {
+		ports = append(ports, corev1.ServicePort{
+			Name:       port.Name,
+			Protocol:   port.Protocol,
+			Port:       port.ContainerPort,
+			TargetPort: intstr.FromInt(int(port.ContainerPort)),
+		},
+		)
+	}
+
 	return &corev1.Service{
 		ObjectMeta: dc.ObjectMeta,
 		Spec: corev1.ServiceSpec{
 			Selector: dc.Spec.Selector,
 			Type:     corev1.ServiceTypeClusterIP,
+			Ports:    ports,
 		},
 	}
 }

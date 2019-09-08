@@ -84,11 +84,24 @@ func schema_pkg_apis_app_v1alpha1_ServerlessOrchestrationAppSpec(ref common.Refe
 							Format: "",
 						},
 					},
+					"ports": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.ContainerPort"),
+									},
+								},
+							},
+						},
+					},
 				},
-				Required: []string{"definition", "image"},
+				Required: []string{"name", "definition", "image", "ports"},
 			},
 		},
-		Dependencies: []string{},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.ContainerPort"},
 	}
 }
 

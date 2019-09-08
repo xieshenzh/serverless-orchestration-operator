@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/RHsyseng/operator-utils/pkg/olm"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -11,9 +12,10 @@ import (
 // ServerlessOrchestrationAppSpec defines the desired state of ServerlessOrchestrationApp
 // +k8s:openapi-gen=true
 type ServerlessOrchestrationAppSpec struct {
-	Name       string `json:"name,omitempty"`
-	Definition string `json:"definition"`
-	Image      string `json:"image"`
+	Name       string                 `json:"name"`
+	Definition string                 `json:"definition"`
+	Image      string                 `json:"image"`
+	Ports      []corev1.ContainerPort `json:"ports"`
 }
 
 // ServerlessOrchestrationAppStatus defines the observed state of ServerlessOrchestrationApp

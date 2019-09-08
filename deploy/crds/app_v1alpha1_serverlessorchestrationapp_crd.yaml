@@ -35,9 +35,15 @@ spec:
               type: string
             name:
               type: string
+            ports:
+              items:
+                type: object
+              type: array
           required:
+          - name
           - definition
           - image
+          - ports
           type: object
         status:
           properties:
