@@ -2,6 +2,8 @@ package serverlessorchestrationapp
 
 import (
 	"context"
+	"github.com/RHsyseng/operator-utils/pkg/olm"
+	"github.com/go-logr/logr"
 	appv1alpha1 "github.com/kiegroup/serverless-orchestration-operator/pkg/apis/app/v1alpha1"
 	oappsv1 "github.com/openshift/api/apps/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -108,97 +110,71 @@ func (r *ReconcileServerlessOrchestrationApp) Reconcile(request reconcile.Reques
 
 	// Define a CM
 	cm := newCMForCR(instance)
-
-	// Set ServerlessOrchestrationApp instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, cm, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this CM already exists
-	foundCM := &corev1.ConfigMap{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, foundCM)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new ConfigMap", "CM.Namespace", cm.Namespace, "CM.Name", cm.Name)
-		err = r.client.Create(context.TODO(), cm)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		reqLogger.Info("ConfigMap created successfully")
-	} else if err != nil {
+	cmObjectForCR := &objectForCR{runtimeObject: cm, metaObject: cm, objectMeta: &cm.ObjectMeta, objectType: "ConfigMap"}
+	if err = r.createObjectForCR(instance, cmObjectForCR, &corev1.ConfigMap{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Define a DC
 	dc := newDCForCR(instance, cm)
-
-	// Set ServerlessOrchestrationApp instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, dc, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this DC already exists
-	foundDC := &oappsv1.DeploymentConfig{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: dc.Name, Namespace: dc.Namespace}, foundDC)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new DC", "DC.Namespace", dc.Namespace, "DC.Name", dc.Name)
-		err = r.client.Create(context.TODO(), dc)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		reqLogger.Info("DC created successfully")
-	} else if err != nil {
+	dcObjectForCR := &objectForCR{runtimeObject: dc, metaObject: dc, objectMeta: &dc.ObjectMeta, objectType: "DeploymentConfig"}
+	if err = r.createObjectForCR(instance, dcObjectForCR, &oappsv1.DeploymentConfig{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Define a Service
 	service := newServiceForCR(dc)
-
-	// Set ServerlessOrchestrationApp instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, service, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this Service already exists
-	foundService := &corev1.Service{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, foundService)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Service", "Service.Namespace", service.Namespace, "service.Name", service.Name)
-		err = r.client.Create(context.TODO(), service)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		reqLogger.Info("Service created successfully")
-	} else if err != nil {
+	svcObjectForCR := &objectForCR{runtimeObject: service, metaObject: service, objectMeta: &service.ObjectMeta, objectType: "Service"}
+	if err = r.createObjectForCR(instance, svcObjectForCR, &corev1.Service{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Define a Route
 	route := newRouteForCR(service)
-
-	// Set ServerlessOrchestrationApp instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, route, r.scheme); err != nil {
+	rtObjectForCR := &objectForCR{runtimeObject: route, metaObject: route, objectMeta: &route.ObjectMeta, objectType: "Route"}
+	if err = r.createObjectForCR(instance, rtObjectForCR, &routev1.Route{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Check if this Route already exists
-	foundRoute := &routev1.Route{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: route.Name, Namespace: route.Namespace}, foundRoute)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Route", "Route.Namespace", route.Namespace, "route.Name", route.Name)
-		err = r.client.Create(context.TODO(), route)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		reqLogger.Info("Route created successfully")
-	} else if err != nil {
-		return reconcile.Result{}, err
+	// Update DC status
+	dcInstance := &oappsv1.DeploymentConfig{}
+	if err = r.client.Get(context.TODO(), types.NamespacedName{Name: dc.Name, Namespace: dc.Namespace}, dcInstance); err == nil {
+		instance.Status.Deployments = olm.GetDeploymentConfigStatus([]oappsv1.DeploymentConfig{*dcInstance})
 	}
 
 	return reconcile.Result{}, nil
+}
+
+type objectForCR struct {
+	runtimeObject runtime.Object
+	metaObject    metav1.Object
+	objectMeta    *metav1.ObjectMeta
+	objectType    string
+}
+
+func (r *ReconcileServerlessOrchestrationApp) createObjectForCR(cr *appv1alpha1.ServerlessOrchestrationApp,
+	obj *objectForCR, foundObj runtime.Object, reqLogger logr.Logger) error {
+
+	// Set ServerlessOrchestrationApp instance as the owner and controller
+	if err := controllerutil.SetControllerReference(cr, obj.metaObject, r.scheme); err != nil {
+		return err
+	}
+
+	// Check if this object already exists
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: obj.objectMeta.Name, Namespace: obj.objectMeta.Namespace}, foundObj)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new object", "Object Type", obj.objectType, "Namespace", obj.objectMeta.Namespace, "Name", obj.objectMeta.Name)
+		err = r.client.Create(context.TODO(), obj.runtimeObject)
+		if err != nil {
+			return err
+		}
+
+		reqLogger.Info(obj.objectType + " created successfully")
+	} else if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 const (
@@ -294,7 +270,7 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 
 // Create service for the app
 func newServiceForCR(dc *oappsv1.DeploymentConfig) *corev1.Service {
-	ports := []corev1.ServicePort{}
+	var ports []corev1.ServicePort
 	for _, port := range dc.Spec.Template.Spec.Containers[0].Ports {
 		ports = append(ports, corev1.ServicePort{
 			Name:       port.Name,
