@@ -3,6 +3,7 @@ module github.com/kiegroup/serverless-orchestration-operator
 require (
 	github.com/NYTimes/gziphandler v1.0.1 // indirect
 	github.com/RHsyseng/operator-utils v0.0.0-20190904181055-24b5b6380a3f
+	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/operator-framework/operator-sdk v0.10.1-0.20190905003907-4ebf3aa52e61

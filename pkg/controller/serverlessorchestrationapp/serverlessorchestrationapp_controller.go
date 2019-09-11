@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	cachev1 "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -38,7 +39,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileServerlessOrchestrationApp{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileServerlessOrchestrationApp{client: mgr.GetClient(), scheme: mgr.GetScheme(), cache: mgr.GetCache()}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -83,6 +84,7 @@ type ReconcileServerlessOrchestrationApp struct {
 	// that reads objects from the cache and writes to the apiserver
 	client client.Client
 	scheme *runtime.Scheme
+	cache  cachev1.Cache
 }
 
 // Reconcile reads that state of the cluster for a ServerlessOrchestrationApp object and makes changes based on the state read
@@ -123,14 +125,14 @@ func (r *ReconcileServerlessOrchestrationApp) Reconcile(request reconcile.Reques
 	}
 
 	// Define a Service
-	service := newServiceForCR(dc)
+	service := newServiceForCR(instance, dc)
 	svcObjectForCR := &objectForCR{runtimeObject: service, metaObject: service, objectMeta: &service.ObjectMeta, objectType: "Service"}
 	if err = r.createObjectForCR(instance, svcObjectForCR, &corev1.Service{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Define a Route
-	route := newRouteForCR(service)
+	route := newRouteForCR(instance, service)
 	rtObjectForCR := &objectForCR{runtimeObject: route, metaObject: route, objectMeta: &route.ObjectMeta, objectType: "Route"}
 	if err = r.createObjectForCR(instance, rtObjectForCR, &routev1.Route{}, reqLogger); err != nil {
 		return reconcile.Result{}, err
@@ -178,38 +180,37 @@ func (r *ReconcileServerlessOrchestrationApp) createObjectForCR(cr *appv1alpha1.
 }
 
 const (
-	workflowJsonKey = "workflow-json"
+	workflowData = "workflow.json"
+	workflowEnv  = "WORKFLOW_PATH"
+	workflowPath = "/opt/workflow/"
+	workflowDef  = "workflow-def"
 )
 
 // Create deployment config for the app
 func newCMForCR(cr *appv1alpha1.ServerlessOrchestrationApp) *corev1.ConfigMap {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "workflow-config",
+			Name:      cr.Spec.Name + "-config",
 			Namespace: cr.Namespace,
-			Labels:    labels,
+			Labels: map[string]string{
+				"app": cr.Name,
+			},
 		},
 		Data: map[string]string{
-			workflowJsonKey: cr.Spec.Definition,
+			workflowData: cr.Spec.Definition,
 		},
 	}
 }
 
 // Create deployment config for the app
 func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap) *oappsv1.DeploymentConfig {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-
 	return &oappsv1.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Spec.Name,
+			Name:      cr.Spec.Name + "-dc",
 			Namespace: cr.Namespace,
-			Labels:    labels,
+			Labels: map[string]string{
+				"app": cr.Name,
+			},
 		},
 		Spec: oappsv1.DeploymentConfigSpec{
 			Strategy: oappsv1.DeploymentStrategy{
@@ -218,9 +219,11 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 			Replicas: 1,
 			Template: &corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      cr.Spec.Name,
+					Name:      cr.Spec.Name + "-pod",
 					Namespace: cr.Namespace,
-					Labels:    labels,
+					Labels: map[string]string{
+						"app": cr.Name,
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
@@ -231,14 +234,14 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 							Ports:           cr.Spec.Ports,
 							Env: []corev1.EnvVar{
 								{
-									Name:  "WORKFLOW_PATH",
-									Value: "/opt/process/workflow.json",
+									Name:  workflowEnv,
+									Value: workflowPath + workflowData,
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "workflow-json",
-									MountPath: "/opt/process",
+									Name:      workflowDef,
+									MountPath: workflowPath,
 								},
 							},
 						},
@@ -246,18 +249,13 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 					ServiceAccountName: "serverless-orchestration-operator",
 					Volumes: []corev1.Volume{
 						{
-							Name: "workflow-json",
+							Name: workflowDef,
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: cm.Name,
 									},
-									Items: []corev1.KeyToPath{
-										{
-											Key:  workflowJsonKey,
-											Path: "workflow.json",
-										},
-									},
+									DefaultMode: func(i int32) *int32 { return &i }(420),
 								},
 							},
 						},
@@ -269,7 +267,7 @@ func newDCForCR(cr *appv1alpha1.ServerlessOrchestrationApp, cm *corev1.ConfigMap
 }
 
 // Create service for the app
-func newServiceForCR(dc *oappsv1.DeploymentConfig) *corev1.Service {
+func newServiceForCR(cr *appv1alpha1.ServerlessOrchestrationApp, dc *oappsv1.DeploymentConfig) *corev1.Service {
 	var ports []corev1.ServicePort
 	for _, port := range dc.Spec.Template.Spec.Containers[0].Ports {
 		ports = append(ports, corev1.ServicePort{
@@ -282,7 +280,13 @@ func newServiceForCR(dc *oappsv1.DeploymentConfig) *corev1.Service {
 	}
 
 	return &corev1.Service{
-		ObjectMeta: dc.ObjectMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Spec.Name + "-service",
+			Namespace: cr.Namespace,
+			Labels: map[string]string{
+				"app": cr.Name,
+			},
+		},
 		Spec: corev1.ServiceSpec{
 			Selector: dc.Spec.Selector,
 			Type:     corev1.ServiceTypeClusterIP,
@@ -292,9 +296,15 @@ func newServiceForCR(dc *oappsv1.DeploymentConfig) *corev1.Service {
 }
 
 // Create droute for the app
-func newRouteForCR(service *corev1.Service) *routev1.Route {
+func newRouteForCR(cr *appv1alpha1.ServerlessOrchestrationApp, service *corev1.Service) *routev1.Route {
 	return &routev1.Route{
-		ObjectMeta: service.ObjectMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Spec.Name + "-route",
+			Namespace: cr.Namespace,
+			Labels: map[string]string{
+				"app": cr.Name,
+			},
+		},
 		Spec: routev1.RouteSpec{
 			Port: &routev1.RoutePort{
 				TargetPort: intstr.FromString("http"),

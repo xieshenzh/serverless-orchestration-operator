@@ -13,7 +13,7 @@ rules:
     resources:
       - "*"
     verbs:
-      - '*'
+      - "*"
   - apiGroups:
       - ""
     resources:
